@@ -24,10 +24,11 @@ module RSpec
         @args_to_yield = []
         @failed_fast = nil
         @eval_context = nil
-        @implementation = implementation
 
         @initial_implementation_logic = nil
         @terminal_implementation_logic = nil
+
+        self.inner_implementation_logic = implementation
       end
 
       # @private
@@ -78,7 +79,7 @@ module RSpec
 
         if implementation
           # TODO: deprecate `and_return { value }`
-          @implementation = implementation
+          self.inner_implementation = implementation
         else
           self.terminal_implementation_logic = AndReturnImplementation.new(values)
         end
@@ -129,7 +130,7 @@ module RSpec
           exception = message ? exception.exception(message) : exception.exception
         end
 
-        @implementation = Proc.new { raise exception }
+        self.terminal_implementation_logic = Proc.new { raise exception }
       end
 
       # @overload and_throw(symbol)
@@ -143,7 +144,7 @@ module RSpec
       #   car.stub(:go).and_throw(:out_of_gas)
       #   car.stub(:go).and_throw(:out_of_gas, :level => 0.1)
       def and_throw(*args)
-        @implementation = Proc.new { throw *args }
+        self.terminal_implementation_logic = Proc.new { throw *args }
       end
 
       # Tells the object to yield one or more args to a block when the message
@@ -279,7 +280,7 @@ module RSpec
       #   cart.add(Book.new(:isbn => 1934356379))
       #   # => passes
       def with(*args, &block)
-        @implementation = block if block_given? unless args.empty?
+        self.inner_implementation_logic = block if block_given? unless args.empty?
         @argument_list_matcher = ArgumentListMatcher.new(*args, &block)
         self
       end
@@ -431,6 +432,11 @@ module RSpec
         update_implementation
       end
 
+      def inner_implementation_logic=(logic)
+        @inner_implementation_logic = logic
+        update_implementation
+      end
+
       def terminal_implementation_logic=(logic)
         @terminal_implementation_logic = logic
         update_implementation
@@ -439,6 +445,7 @@ module RSpec
       def update_implementation
         @implementation = Implementation.new(
           @initial_implementation_logic,
+          @inner_implementation_logic,
           @terminal_implementation_logic
         ).method(:call)
       end
